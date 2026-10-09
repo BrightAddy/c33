@@ -1,0 +1,55 @@
+.scroll-scrub {
+  position: relative;
+  width: 100%;
+}
+
+.scroll-scrub__stage {
+  position: sticky;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--scroll-scrub-bg, #0b0c0d);
+}
+
+.scroll-scrub__video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.scroll-scrub__progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--scroll-scrub-accent, #c8102e);
+  transform-origin: left center;
+  z-index: 10;
+  pointer-events: none;
+  transition: transform 0.05s linear;
+}
+
+.scroll-scrub__route {
+  position: absolute;
+  top: 2rem;
+  left: 2rem;
+  display: flex;
+  gap: 1rem;
+  z-index: 5;
+  color: var(--scroll-scrub-ink, #f3efe8);
+}
+
+.scroll-scrub__copy {
+  position: absolute;
+  bottom: 3rem;
+  left: 3rem;
+  z-index: 5;
+  color: var(--scroll-scrub-ink, #f3efe8);
+}
