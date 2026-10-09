@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import "@/ab-massivhaus.css";
 import { JourneyChapters } from "@/components/ab/journey-chapters";
+import { SiteHeader } from "@/components/ab/site-header";
 import { ScrollScrub } from "@/components/scroll-scrub/scroll-scrub";
 import { scrollScrubScenes, scrollScrubTheme } from "@/scroll-scrub-scenes";
 
@@ -119,6 +120,7 @@ function Index() {
 
   return (
     <div className="ab-site" id="top">
+      <SiteHeader />
       <main>
         {/* Hero Scroll Journey */}
         <div className="ab-journey">
