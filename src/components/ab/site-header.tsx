@@ -7,7 +7,7 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { href: "#top", label: "STARTSEITE", id: "top" },
+  { href: "#top", label: "HOME", id: "top" },
   { href: "#projekte", label: "PROJEKTE", id: "projekte" },
   { href: "#ueber-uns", label: "ÜBER UNS", id: "ueber-uns" },
   { href: "#leistungen", label: "LEISTUNGEN", id: "leistungen" },
@@ -27,10 +27,8 @@ export function SiteHeader() {
         setIsLightMode(rect.top <= 80);
       }
 
-      // 2. Active section detection (Home / Startseite while in hero journey)
-      const scrollY = window.scrollY;
+      // 2. Active section detection (Home while in hero journey)
       const vh = window.innerHeight;
-
       const journeyEl = document.querySelector(".ab-journey");
       const journeyBottom = journeyEl ? journeyEl.getBoundingClientRect().bottom : vh;
 
@@ -63,11 +61,6 @@ export function SiteHeader() {
 
   return (
     <header className={`ab-header ${isLightMode ? "ab-header--light" : ""}`}>
-      <a aria-label="AB MASSIVHAUS, Zur Startseite" className="ab-logo" href="#top">
-        <span className="ab-logo__title">AB MASSIVHAUS</span>
-        <span className="ab-logo__sub">ARCHITEKTUR &amp; BAU</span>
-      </a>
-
       <nav aria-label="Hauptnavigation" className="ab-nav">
         {navItems.map((item) => {
           const isActive = activeSection === item.id;
@@ -78,13 +71,7 @@ export function SiteHeader() {
               href={item.href}
               key={item.id}
             >
-              {item.id === "top" && (
-                <span aria-hidden="true" className="ab-nav__indicator" />
-              )}
               <span>{item.label}</span>
-              {item.id === "top" && (
-                <span className="ab-nav__tag">START</span>
-              )}
             </a>
           );
         })}

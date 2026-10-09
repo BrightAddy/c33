@@ -100,7 +100,7 @@ html {
   display: flex;
   align-items: center;
   gap: clamp(1rem, 2.2vw, 2.2rem);
-  margin-left: auto;
+  margin-left: 0;
 }
 
 .ab-nav__link {
@@ -1015,15 +1015,21 @@ html {
 
 @media (max-width: 900px) {
   .ab-nav {
-    display: none;
+    gap: 0.9rem;
+  }
+  .ab-nav__link {
+    font-size: 0.65rem;
+    letter-spacing: 0.12em;
   }
   .ab-header {
     justify-content: space-between;
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
   }
   .ab-cta--outline,
   .ab-cta--dark {
-    padding: 0.7rem 1.1rem;
-    font-size: 0.65rem;
+    padding: 0.6rem 0.95rem;
+    font-size: 0.62rem;
   }
   .ab-chapters {
     align-items: flex-end;
@@ -1038,6 +1044,25 @@ html {
   }
   .ab-stats__grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .ab-header {
+    gap: 0.75rem;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  .ab-nav {
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+    gap: 0.75rem;
+    max-width: calc(100vw - 160px);
+  }
+  .ab-nav::-webkit-scrollbar {
+    display: none;
   }
 }
 
