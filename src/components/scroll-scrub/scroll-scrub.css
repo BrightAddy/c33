@@ -14,6 +14,17 @@
   background: var(--scroll-scrub-bg, #0b0c0d);
 }
 
+.scroll-scrub__poster {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  z-index: 1;
+  pointer-events: none;
+}
+
 .scroll-scrub__video {
   position: absolute;
   inset: 0;
@@ -21,6 +32,14 @@
   height: 100%;
   object-fit: cover;
   display: block;
+  z-index: 2;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+}
+
+.scroll-scrub__video--ready {
+  opacity: 1;
 }
 
 .scroll-scrub__progress {

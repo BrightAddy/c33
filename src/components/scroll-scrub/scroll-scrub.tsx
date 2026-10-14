@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useMemo } from "react";
+import React, { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import "./scroll-scrub.css";
 
 export interface ScrollScrubScene {
@@ -34,8 +34,14 @@ export function ScrollScrub({ scenes, theme, className = "" }: ScrollScrubProps)
   const videoRef = useRef<HTMLVideoElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
 
-  const [isMobile, setIsMobile] = useState(false);
-  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window !== "undefined") {
+      return window.innerWidth <= 900;
+    }
+    return false;
+  });
+
+  const [isVideoLoaded, setIsVideoLoaded] = useState(false);
   const [activeSceneIndex, setActiveSceneIndex] = useState(0);
 
   const activeScene = scenes[activeSceneIndex] || scenes[0];
@@ -45,17 +51,17 @@ export function ScrollScrub({ scenes, theme, className = "" }: ScrollScrubProps)
     return scenes.reduce((sum, s) => sum + (s.scroll || 4), 0) * 100;
   }, [scenes]);
 
-  // Check mobile viewport
+  // Mobile viewport listener
   useEffect(() => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth <= 900);
     };
     checkMobile();
-    window.addEventListener("resize", checkMobile);
+    window.addEventListener("resize", checkMobile, { passive: true });
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
-  // Determine active clip URL
+  // Determine active clip URL - direct native streaming for mobile compatibility
   const targetClipUrl = useMemo(() => {
     if (!activeScene) return "";
     return isMobile && activeScene.mobileClip ? activeScene.mobileClip : activeScene.clip;
@@ -67,39 +73,56 @@ export function ScrollScrub({ scenes, theme, className = "" }: ScrollScrubProps)
     return isMobile && activeScene.mobilePoster ? activeScene.mobilePoster : activeScene.poster;
   }, [activeScene, isMobile]);
 
-  // Fetch clip as Blob URL for instantaneous, stutter-free scrubbing
+  // Imperatively prime the video element for mobile iOS Safari / Android Chrome
   useEffect(() => {
-    if (!targetClipUrl) return;
+    const video = videoRef.current;
+    if (!video) return;
+
+    // Critical mobile WebKit properties
+    video.muted = true;
+    video.defaultMuted = true;
+    video.playsInline = true;
+    video.setAttribute("playsinline", "true");
+    video.setAttribute("webkit-playsinline", "true");
 
     let isCancelled = false;
-    let createdUrl: string | null = null;
 
-    fetch(targetClipUrl)
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.blob();
-      })
-      .then((blob) => {
-        if (isCancelled) return;
-        createdUrl = URL.createObjectURL(blob);
-        setBlobUrl(createdUrl);
-      })
-      .catch((err) => {
-        console.warn("Direct blob loading fallback to source url:", err);
-        if (!isCancelled) {
-          setBlobUrl(targetClipUrl);
-        }
-      });
+    // Boot mobile video decoder so it doesn't freeze on black screen
+    const bootDecoder = () => {
+      if (isCancelled || !video) return;
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise
+          .then(() => {
+            if (!isCancelled && video) {
+              video.pause();
+              setIsVideoLoaded(true);
+            }
+          })
+          .catch(() => {
+            // Mobile autoplay policy may require interaction; still mark ready if data available
+            if (video.readyState >= 2) {
+              setIsVideoLoaded(true);
+            }
+          });
+      }
+    };
+
+    video.addEventListener("loadeddata", bootDecoder, { once: true });
+    video.addEventListener("canplay", bootDecoder, { once: true });
+
+    if (video.readyState >= 2) {
+      bootDecoder();
+    }
 
     return () => {
       isCancelled = true;
-      if (createdUrl) {
-        URL.revokeObjectURL(createdUrl);
-      }
+      video.removeEventListener("loadeddata", bootDecoder);
+      video.removeEventListener("canplay", bootDecoder);
     };
   }, [targetClipUrl]);
 
-  // Scrubbing animation loop
+  // Scrubbing animation loop with non-blocking, queued seeking
   useEffect(() => {
     const container = containerRef.current;
     const video = videoRef.current;
@@ -109,6 +132,7 @@ export function ScrollScrub({ scenes, theme, className = "" }: ScrollScrubProps)
     let targetProgress = 0;
     let currentProgress = 0;
     let rafId = 0;
+    let pendingSeekTime: number | null = null;
 
     const onScroll = () => {
       const rect = container.getBoundingClientRect();
@@ -116,6 +140,35 @@ export function ScrollScrub({ scenes, theme, className = "" }: ScrollScrubProps)
       const span = Math.max(rect.height - vh, 1);
       targetProgress = Math.min(1, Math.max(0, -rect.top / span));
     };
+
+    const applySeek = (time: number) => {
+      if (!video.duration || Number.isNaN(video.duration)) return;
+      const clampedTime = Math.min(video.duration - 0.02, Math.max(0, time));
+
+      if (video.seeking) {
+        // Queue the seek instead of aborting the hardware decoder
+        pendingSeekTime = clampedTime;
+        return;
+      }
+
+      if (Math.abs(video.currentTime - clampedTime) > 0.025) {
+        try {
+          video.currentTime = clampedTime;
+        } catch {
+          // Ignore transient seek errors
+        }
+      }
+    };
+
+    const onSeeked = () => {
+      if (pendingSeekTime !== null) {
+        const nextTime = pendingSeekTime;
+        pendingSeekTime = null;
+        applySeek(nextTime);
+      }
+    };
+
+    video.addEventListener("seeked", onSeeked);
 
     const updateLoop = () => {
       const diff = targetProgress - currentProgress;
@@ -130,18 +183,8 @@ export function ScrollScrub({ scenes, theme, className = "" }: ScrollScrubProps)
       }
 
       if (video.duration && !Number.isNaN(video.duration) && video.duration > 0) {
-        const targetTime = Math.min(
-          video.duration - 0.02,
-          Math.max(0, currentProgress * video.duration)
-        );
-
-        if (Math.abs(video.currentTime - targetTime) > 0.015) {
-          if ("fastSeek" in video && typeof (video as any).fastSeek === "function") {
-            (video as any).fastSeek(targetTime);
-          } else {
-            video.currentTime = targetTime;
-          }
-        }
+        const targetTime = currentProgress * video.duration;
+        applySeek(targetTime);
       }
 
       rafId = requestAnimationFrame(updateLoop);
@@ -149,12 +192,13 @@ export function ScrollScrub({ scenes, theme, className = "" }: ScrollScrubProps)
 
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll);
+    window.addEventListener("resize", onScroll, { passive: true });
     rafId = requestAnimationFrame(updateLoop);
 
     return () => {
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onScroll);
+      video.removeEventListener("seeked", onSeeked);
       if (rafId) cancelAnimationFrame(rafId);
     };
   }, []);
@@ -168,26 +212,47 @@ export function ScrollScrub({ scenes, theme, className = "" }: ScrollScrubProps)
       } as React.CSSProperties)
     : undefined;
 
+  // On mobile screens, 380vh provides natural thumb swipe pacing
+  const containerHeight = isMobile ? "380vh" : `${totalScrollVh}vh`;
+
   return (
     <div
       className={`scroll-scrub ${className}`}
       ref={containerRef}
       style={{
         ...themeStyles,
-        height: `${totalScrollVh}vh`,
+        height: containerHeight,
       }}
     >
       <div className="scroll-scrub__stage">
+        {/* Instant fallback poster image so mobile phones never render a black void */}
+        {posterUrl && (
+          <img
+            alt=""
+            aria-hidden="true"
+            className="scroll-scrub__poster"
+            loading="eager"
+            src={posterUrl}
+            style={{
+              objectPosition: isMobile
+                ? activeScene?.mobileObjectPosition || "50% 50%"
+                : activeScene?.objectPosition || "50% 50%",
+            }}
+          />
+        )}
+
         <video
           aria-hidden="true"
-          className="scroll-scrub__video"
+          autoPlay
+          className={`scroll-scrub__video ${isVideoLoaded ? "scroll-scrub__video--ready" : ""}`}
           disablePictureInPicture
+          loop
           muted
           playsInline
           poster={posterUrl}
           preload="auto"
           ref={videoRef}
-          src={blobUrl || targetClipUrl}
+          src={targetClipUrl}
           style={{
             objectPosition: isMobile
               ? activeScene?.mobileObjectPosition || "50% 50%"

@@ -56,9 +56,13 @@ export function JourneyChapters() {
 
     update();
     window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("touchmove", schedule, { passive: true });
+    window.addEventListener("touchend", schedule, { passive: true });
     window.addEventListener("resize", schedule);
     return () => {
       window.removeEventListener("scroll", schedule);
+      window.removeEventListener("touchmove", schedule);
+      window.removeEventListener("touchend", schedule);
       window.removeEventListener("resize", schedule);
       if (frame) cancelAnimationFrame(frame);
     };
